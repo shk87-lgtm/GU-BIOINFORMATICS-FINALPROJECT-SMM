@@ -9,13 +9,13 @@
   - Run Accession - ERR2017415
 - Control Sample 02:
   - Sample Accession - SAMEA104142365
-  - Run Accession - ERR2017420.
+  - Run Accession - ERR2017420
 - ACVD Sample 01:
   - Sample Accession - SAMEA104142287
-  - Run Accession - ERR2017598.
+  - Run Accession - ERR2017598
 - ACVD Sample 02:
   - Sample Accession - SAMEA104142288
-  - Run Accession - ERR2017599.
+  - Run Accession - ERR2017599
 
 ## Workflow Overview
 The following workflow was followed for all 4 samples, and the sequence of commands was consistent. For the sake of conserving space, the code for the first control is reproduced below.
@@ -59,6 +59,24 @@ mkdir kraken_db
 # Create a subdirectory to store the outputs from Kraken2
 mkdir kraken_output
 
+# Move into the subdirectory to store raw reads
+cd raw_reads
+
 # Download raw read files from publicly available dataset
 wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR201/005/ERR2017415/ERR2017415_1.fastq.gz
-$wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR201/005/ERR2017415/ERR2017415_2.fastq.gz
+wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/ERR201/005/ERR2017415/ERR2017415_2.fastq.gz
+```
+--------------------
+
+## Step 2: Assess raw read quality with FastQC
+
+FastQC is used to evaluate the quality of the raw sequencing reads before any downstream analysis. This is important because poor-quality bases, adapter contamination, and abnormal sequence duplication can negatively affect trimming, assembly, and viral detection. By inspecting the raw reads first, we can justify why trimming is needed.
+
+-------------------
+```bash
+$srun --pty bash
+$module load fastqc
+$fastqc ERR2017415_*
+```
+-------------------
+
