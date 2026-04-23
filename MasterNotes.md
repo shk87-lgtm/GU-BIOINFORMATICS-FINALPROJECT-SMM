@@ -95,11 +95,11 @@ nano trim_control_01
 ```
 -------------------
 
-### Slurm Script: Parameter choices (ILLUMINACLIP, SLIDINGWINDOW, MINLEN) were selected to balance read quality and data retention. Adapter clipping removes non-biological sequences, SLIDINGWINDOW:4:20 trims low-quality regions based on a common Q20 threshold (≈1% error rate) in a window of 4 bases, and MINLEN:50 ensures reads are long enough (>50 bases) to be useful for assembly while discarding overly short, unreliable fragments.
+### Slurm Script: 
+Parameter choices (ILLUMINACLIP, SLIDINGWINDOW, MINLEN) were selected to balance read quality and data retention. Adapter clipping removes non-biological sequences, SLIDINGWINDOW:4:20 trims low-quality regions based on a common Q20 threshold (≈1% error rate) in a window of 4 bases, and MINLEN:50 ensures reads are long enough (>50 bases) to be useful for assembly while discarding overly short, unreliable fragments. The script is produced below.
 
 -------------------
 ```bash
-# The script is produced below
 #!/bin/bash
 #SBATCH --job-name=trim_control_01
 #SBATCH --output=/home/mjd356/final_project/logs/trim_%j.out
@@ -130,3 +130,60 @@ trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} \
   MINLEN:50
 ```
 -------------------
+
+The slurm script was submitted as a job to the HPC scheduler to run on a compute node.
+
+--------------------
+```bash
+sbatch trim_reads.slurm
+```
+--------------------
+
+80.16% of reads survived in both forward and reverse trimming.
+
+--------------------
+
+## Step 4: Assess trimmed read quality with FastQC
+
+-------------------
+```bash
+# Move back into the main project directory and then into the subdirectory with the trimmed reads
+cd ..
+cd trimmed_reads
+
+# Run FastQC on paired trimmed reads
+srun --pty bash
+module load fastqc
+fastqc *_paired.fastq.gz
+```
+-------------------
+
+## Step 5: Identify taxonomies present in our dataset using Kraken2
+Kraken2 uses trimmed reads to perform k-mer-based taxonomic classification. Kraken2 requires a databse, and we downloaded a publicly available standard database.
+
+-------------------
+```bash
+# Create an environment to activate kraken2
+module load anaconda3
+source $(conda info --base)/etc/profile.d/conda.sh
+conda create -n kraken2 -c bioconda kraken2 -y
+conda activate kraken2
+
+# Download a standard database for kraken2
+wget https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08_GB_20260226.tar.gz
+tar -xzvf k2_standard_08_GB_20260226.tar.gz
+
+# Run kraken2 on paired trimmed reads
+kraken2 \
+--db /home/mjd346/final_project/kraken/ \
+--threads 8 \
+--paired \
+--output /home/mjd356/final_project/kraken_output/paired.output \
+--report /home/mjd356/final_project/kraken_output/paired.report \
+--use-names \
+/home/mjd356/final_project/trimmed_reads/ERR2017420_forward_paired.fastq.gz \
+/home/mjd356/final_project/trimmed_reads/ERR2017420_reverse_paired.fastq.gz
+```
+-------------------
+
+## Step 6: Visualize diversity and abundance using R
