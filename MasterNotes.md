@@ -74,9 +74,59 @@ FastQC is used to evaluate the quality of the raw sequencing reads before any do
 
 -------------------
 ```bash
-$srun --pty bash
-$module load fastqc
-$fastqc ERR2017415_*
+srun --pty bash
+module load fastqc
+fastqc ERR2017415_*
 ```
 -------------------
 
+## Step 3: Trim adapters and low-quality bases with Trimmomatic
+
+Trimming removes adapter contamination and low-quality sequence from the reads. We use paired-end trimming so that the relationship between the two reads from the same DNA fragment is preserved whenever possible.
+
+-------------------
+```bash
+# Move back into the main project directory and then into the subdirectory for scripts
+cd ..
+cd scripts
+
+# Open a text file for the script
+nano trim_control_01
+```
+-------------------
+
+### Slurm Script: Parameter choices (ILLUMINACLIP, SLIDINGWINDOW, MINLEN) were selected to balance read quality and data retention. Adapter clipping removes non-biological sequences, SLIDINGWINDOW:4:20 trims low-quality regions based on a common Q20 threshold (≈1% error rate) in a window of 4 bases, and MINLEN:50 ensures reads are long enough (>50 bases) to be useful for assembly while discarding overly short, unreliable fragments.
+
+-------------------
+```bash
+# The script is produced below
+#!/bin/bash
+#SBATCH --job-name=trim_control_01
+#SBATCH --output=/home/mjd356/final_project/logs/trim_%j.out
+#SBATCH --error=/home/mjd356/final_project/logs/trim_%j.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=mjd356@georgetown.edu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=01:00:00
+#SBATCH --mem=8G
+
+shopt -s expand_aliases
+module load trimmomatic
+
+BASE=/home/mjd356/final_project
+R1=$BASE/raw_reads/ERR2017415_1.fastq.gz
+R2=$BASE/raw_reads/ERR2017415_2.fastq.gz
+ADAPTERS=$BASE/adapters/TruSeq3-PE.fa
+OUTDIR=$BASE/trimmed_reads
+
+trimmomatic PE -threads ${SLURM_CPUS_PER_TASK} \
+  $R1 $R2 \
+  $OUTDIR/ERR2017415_forward_paired.fastq.gz $OUTDIR/ERR2017415_forward_unpaired.fastq.gz \
+  $OUTDIR/ERR2017415_reverse_paired.fastq.gz $OUTDIR/ERR2017415_reverse_unpaired.fastq.gz \
+  ILLUMINACLIP:$ADAPTERS:2:30:10 \
+  SLIDINGWINDOW:4:20 \
+  MINLEN:50
+```
+-------------------
