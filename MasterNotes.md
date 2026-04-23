@@ -190,6 +190,6 @@ kraken2 \
 We created a relative abundance graph, a UMAP, and a network graph in R to visualize the diversity and abundance of microbes in our samples.
 
 Public links to R workflows:
-- Relative Abundance Graph: 
+- Relative Abundance Graph: https://rpubs.com/skar/1425504
 - UMAP: https://rpubs.com/skar/1425493
 - Network Graph: https://rpubs.com/skar/1425370
