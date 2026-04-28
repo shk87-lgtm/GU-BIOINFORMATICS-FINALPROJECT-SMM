@@ -187,9 +187,8 @@ kraken2 \
 -------------------
 
 ## Step 6: Visualize diversity and abundance using R
-We created a relative abundance graph, a UMAP, and a network graph in R to visualize the diversity and abundance of microbes in our samples.
+We created a relative abundance graph and a UMAP in R to visualize the diversity and abundance of microbes in our samples.
 
 Public links to R workflows:
 - Relative Abundance Graph: https://rpubs.com/skar/1425504
 - UMAP: https://rpubs.com/skar/1425493
-- Network Graph: https://rpubs.com/skar/1425370
