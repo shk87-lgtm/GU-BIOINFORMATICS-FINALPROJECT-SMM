@@ -190,5 +190,116 @@ kraken2 \
 We created a relative abundance graph and a UMAP in R to visualize the diversity and abundance of microbes in our samples.
 
 Public links to R workflows:
-- Relative Abundance Graph: https://rpubs.com/skar/1425504
+- Relative Abundance Graph from Presentation: https://rpubs.com/skar/1425504
 - UMAP: https://rpubs.com/skar/1425493
+- Relative Abundance Graph code used in writeup addressing changes.
+
+#install.packages(c("dplyr", "tidyr", "ggplot2"))
+
+#library(dplyr)
+#library(tidyr)
+#library(ggplot2)
+
+#file names
+files <- c(
+  "control_01.report",
+  "control_02.report",
+  "treatment_01.report",
+  "treatment_02.report"   # fix name if needed
+)
+
+#read through kraken files
+parse_kraken <- function(file) {
+  lines <- readLines(file)
+  
+  parsed <- lapply(lines, function(line) {
+    parts <- strsplit(line, "\t")[[1]]
+    
+    if (length(parts) < 6) return(NULL)
+    
+    data.frame(
+      percent = as.numeric(parts[1]),
+      rank = parts[4],
+      name = trimws(parts[6]),
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  df <- do.call(rbind, parsed)
+  
+  # Keep genus only
+  df <- df[df$rank == "G", c("name", "percent")]
+  colnames(df) <- c("Taxon", "Percent")
+  
+  return(df)
+}
+
+#read files
+
+data_list <- lapply(seq_along(files), function(i) {
+  df <- parse_kraken(files[i])
+  colnames(df)[2] <- files[i]
+  df
+})
+
+# merge samples
+
+merged <- Reduce(function(x, y) merge(x, y, by = "Taxon", all = TRUE), data_list)
+
+# Replace NA with 0
+merged[is.na(merged)] <- 0
+
+#matrix
+merged_matrix <- merged
+rownames(merged_matrix) <- merged_matrix$Taxon
+merged_matrix$Taxon <- NULL
+
+#convert into long format
+full_df <- merged_matrix %>%
+  as.data.frame() %>%
+  mutate(Taxon = rownames(.)) %>%
+  pivot_longer(
+    cols = -Taxon,
+    names_to = "sample",
+    values_to = "percent"
+  )
+
+#normalize data
+
+full_df <- full_df %>%
+  group_by(sample) %>%
+  mutate(percent = percent / sum(percent) * 100) %>%
+  ungroup()
+
+#collapse 1% into one another for an other category
+full_df <- full_df %>%
+  mutate(
+    Taxon = ifelse(percent < 1, "Other", Taxon)
+  )
+
+
+plot_df <- full_df %>%
+  group_by(sample, Taxon) %>%
+  summarise(percent = sum(percent), .groups = "drop")
+
+#order by importance
+plot_df <- plot_df %>%
+  group_by(Taxon) %>%
+  mutate(total = sum(percent)) %>%
+  ungroup() %>%
+  arrange(desc(total))
+
+plot_df$Taxon <- factor(plot_df$Taxon, levels = unique(plot_df$Taxon))
+
+#plot
+ggplot(plot_df, aes(x = sample, y = percent, fill = Taxon)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(
+    title = "Relative Abundance of Bacterial Genera (All Taxa, <1% Grouped)",
+    x = "Sample",
+    y = "Relative Abundance (%)"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )  
