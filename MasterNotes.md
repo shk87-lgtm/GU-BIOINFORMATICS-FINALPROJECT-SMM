@@ -192,30 +192,47 @@ We created a relative abundance graph and a UMAP in R to visualize the diversity
 Public links to R workflows:
 - Relative Abundance Graph from Presentation: https://rpubs.com/skar/1425504
 - UMAP: https://rpubs.com/skar/1425493
-- Relative Abundance Graph code used in writeup addressing changes.
+- Relative Abundance Graph code used in writeup addressing changes is below:
+## Relative Abundance Plot for Kraken2 Genus-Level Data
 
-#install.packages(c("dplyr", "tidyr", "ggplot2"))
+This script reads Kraken2 `.report` files, extracts genus-level taxa, normalizes each sample so relative abundances sum to 100%, groups genera below 1% into an `"Other"` category, and creates a stacked bar plot.
 
-#library(dplyr)
-#library(tidyr)
-#library(ggplot2)
+```r
+# =========================
+# 1. LOAD PACKAGES
+# =========================
 
-#file names
+# Install packages if needed:
+# install.packages(c("dplyr", "tidyr", "ggplot2"))
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# =========================
+# 2. FILE NAMES
+# =========================
+
 files <- c(
   "control_01.report",
   "control_02.report",
   "treatment_01.report",
-  "treatment_02.report"   # fix name if needed
+  "treatment_02.report"
 )
 
-#read through kraken files
+# =========================
+# 3. PARSE KRAKEN2 REPORTS
+# =========================
+
 parse_kraken <- function(file) {
   lines <- readLines(file)
   
   parsed <- lapply(lines, function(line) {
     parts <- strsplit(line, "\t")[[1]]
     
-    if (length(parts) < 6) return(NULL)
+    if (length(parts) < 6) {
+      return(NULL)
+    }
     
     data.frame(
       percent = as.numeric(parts[1]),
@@ -227,34 +244,43 @@ parse_kraken <- function(file) {
   
   df <- do.call(rbind, parsed)
   
-  # Keep genus only
+  # Keep only genus-level classifications
   df <- df[df$rank == "G", c("name", "percent")]
   colnames(df) <- c("Taxon", "Percent")
   
   return(df)
 }
 
-#read files
+# =========================
+# 4. READ ALL FILES
+# =========================
 
 data_list <- lapply(seq_along(files), function(i) {
   df <- parse_kraken(files[i])
   colnames(df)[2] <- files[i]
-  df
+  return(df)
 })
 
-# merge samples
+# =========================
+# 5. MERGE SAMPLES BY TAXON
+# =========================
 
-merged <- Reduce(function(x, y) merge(x, y, by = "Taxon", all = TRUE), data_list)
+merged <- Reduce(
+  function(x, y) merge(x, y, by = "Taxon", all = TRUE),
+  data_list
+)
 
-# Replace NA with 0
+# Replace missing values with 0
 merged[is.na(merged)] <- 0
 
-#matrix
+# =========================
+# 6. CONVERT TO LONG FORMAT
+# =========================
+
 merged_matrix <- merged
 rownames(merged_matrix) <- merged_matrix$Taxon
 merged_matrix$Taxon <- NULL
 
-#convert into long format
 full_df <- merged_matrix %>%
   as.data.frame() %>%
   mutate(Taxon = rownames(.)) %>%
@@ -264,25 +290,30 @@ full_df <- merged_matrix %>%
     values_to = "percent"
   )
 
-#normalize data
+# =========================
+# 7. NORMALIZE EACH SAMPLE TO 100%
+# =========================
 
 full_df <- full_df %>%
   group_by(sample) %>%
   mutate(percent = percent / sum(percent) * 100) %>%
   ungroup()
 
-#collapse 1% into one another for an other category
-full_df <- full_df %>%
-  mutate(
-    Taxon = ifelse(percent < 1, "Other", Taxon)
-  )
-
+# =========================
+# 8. GROUP LOW-ABUNDANCE TAXA
+# =========================
 
 plot_df <- full_df %>%
   group_by(sample, Taxon) %>%
+  summarise(percent = sum(percent), .groups = "drop") %>%
+  mutate(Taxon = ifelse(percent < 1, "Other", Taxon)) %>%
+  group_by(sample, Taxon) %>%
   summarise(percent = sum(percent), .groups = "drop")
 
-#order by importance
+# =========================
+# 9. ORDER TAXA BY TOTAL ABUNDANCE
+# =========================
+
 plot_df <- plot_df %>%
   group_by(Taxon) %>%
   mutate(total = sum(percent)) %>%
@@ -291,15 +322,36 @@ plot_df <- plot_df %>%
 
 plot_df$Taxon <- factor(plot_df$Taxon, levels = unique(plot_df$Taxon))
 
-#plot
+# =========================
+# 10. CHECK SAMPLE TOTALS
+# =========================
+
+plot_df %>%
+  group_by(sample) %>%
+  summarise(total_percent = sum(percent))
+
+# Each sample should sum to 100%.
+
+# =========================
+# 11. MAKE STACKED BAR PLOT
+# =========================
+
 ggplot(plot_df, aes(x = sample, y = percent, fill = Taxon)) +
-  geom_bar(stat = "identity") +
+  geom_bar(stat = "identity", width = 0.75) +
   theme_minimal() +
   labs(
-    title = "Relative Abundance of Bacterial Genera (All Taxa, <1% Grouped)",
+    title = "Relative Abundance of Bacterial Genera",
+    subtitle = "All genera included; taxa below 1% grouped as Other",
     x = "Sample",
-    y = "Relative Abundance (%)"
+    y = "Relative Abundance (%)",
+    fill = "Genus"
   ) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )  
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  )
+```
+
+
